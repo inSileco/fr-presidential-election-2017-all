@@ -1,0 +1,21 @@
+{
+  "name": "Elections_fr-042017",
+  "homepage": "https://github.com/letiR/Elections_fr-042017",
+  "authors": [
+    "Steve Vissault <s.vissault@yahoo.fr>"
+  ],
+  "description": "Get CSS for the app",
+  "main": "map_elections.R",
+  "license": "MIT",
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "test",
+    "tests"
+  ],
+  "dependencies": {
+    "bootstrap": "^3.3.7",
+    "font-awesome": "^4.7.0"
+  }
+}
