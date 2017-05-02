@@ -8,4 +8,4 @@ Les limites administratives des départements français proviennent de la versio
 
 ### Informations pour les geeks
 
-La carte a été réalisée sous le logiciel [R](https://cran.r-project.org) à l'aide des packages [`leaflet`](https://rstudio.github.io/leaflet/) (fond de carte et cartographie), [`mapview`](https://environmentalinformatics-marburg.github.io/mapview/introduction.html) (inclusion de graphique HTML dans un popup), [`highcharter`](http://jkunst.com/highcharter/) (réalisation d'un graphique en HTML) et [`htmlwidgets`](http://www.htmlwidgets.org) (exportation de R en HTML).
+La carte a été réalisée sous le logiciel [R](https://cran.r-project.org) à l'aide des packages [`leaflet`](https://rstudio.github.io/leaflet/) (fond de carte, boutons de contrôle et représentation des données vectorielles), [`mapview`](https://environmentalinformatics-marburg.github.io/mapview/introduction.html) (inclusion de graphique HTML dans le popup d'une région de la carte), [`highcharter`](http://jkunst.com/highcharter/) (réalisation d'un graphique en HTML) et [`htmlwidgets`](http://www.htmlwidgets.org) (exportation depuis R en version HTML).
