@@ -1,5 +1,7 @@
 ### Map by department of France (+ DOM-TOM)
 
+# source('~/Documents/fr-departement-election/R/elections_department.R')
+
 # library(xlsx)
 library(sp)
 library(maptools)
@@ -8,15 +10,14 @@ library(leaflet)
 library(mapview)
 library(highcharter)
 library(htmlwidgets)
+library(htmltools)
 
 
 
 indir <- '~/Documents/fr-departement-election'
 
-# dir.create(paste0(indir, '/graphs'), showWarnings = FALSE)
-dir.create(paste0(indir, '/docs'), showWarnings = FALSE)
-dir.create(paste0(indir, '/docs/barplots'), showWarnings = FALSE)
-dir.create(paste0(indir, '/docs/barplots/libs'), showWarnings = FALSE)
+dir.create(paste0(indir, '/barplots'), showWarnings = FALSE)
+dir.create(paste0(indir, '/barplots/libs'), showWarnings = FALSE)
 
 
 
@@ -49,29 +50,10 @@ x <- x[order(x[ , 'votes'], decreasing = FALSE), ]
 
 
 ### Import France department shapefile
-shp1 <- readRDS(paste0(indir, '/data/FRA_adm2.rds'))
-shp1@data <- shp1@data[ , c(1, 8, 9)]
-colnames(shp1@data) <- c('noid', 'departement', 'code')
-shp1@data[ , 'code'] <- gsub('\\.', '-', shp1@data[ , 'code'])
-
-
-
-### Import DOMTOM shapefile
-shp2 <- readRDS(paste0(indir, '/data/DOM_adm2.rds'))
-shp2@data <- shp2@data[ , c(1, 7, 3)]
-colnames(shp2@data) <- c('noid', 'departement', 'code')
-shp2@data[ , 'code'] <- paste0('FR-', shp2@data[ , 'code'])
-shp2@data[ , 'noid'] <- 97:107
-shp2 <- spChFIDs(shp2, as.character(shp2@data$noid))
-
-
-
-### Merge shapefiles
-shp <- spRbind(shp1, shp2)
-shp@data[which(shp@data$departement == 'Saint-Martin'), 'departement'] <- 'Saint-Martin/Saint-Barthélemy'
-shp@data[which(shp@data$departement == 'Saint-Barthélemy'), 'departement'] <- 'Saint-Martin/Saint-Barthélemy'
-
-
+shp <- readRDS(paste0(indir, '/data/FRA-DOM-composite.rds'))
+shp@data <- shp@data[ , c(1, 8, 9)]
+colnames(shp@data) <- c('noid', 'departement', 'code')
+shp@data[ , 'code'] <- gsub('\\.', '-', shp@data[ , 'code'])
 
 ### Clean attributes
 dat <- data.frame(shp@data)
@@ -80,14 +62,24 @@ dat <- dat[order(dat[ , 'noid']), c(2, 3, 1, 4:ncol(dat))]
 dat[ , 'first'] <- as.character(apply(dat[, 12:ncol(dat)], 1, function(x) names(x)[which(x == max(x))]))
 dat[ , 'color'] <- NA
 for (i in 1 : nrow(dat)) dat[i, 'color'] <- as.character(x[which(x[ , 'noms'] == dat[i, 'first']), 'cols'])
-rownames(dat) <- NULL
+rownames(dat) <-  sapply(shp@polygons, function(x) x@ID)
 shp@data <- dat
-
 
 
 ### Simplify geometry
 shp <- gSimplify(shp, tol = 0.01, topologyPreserve = TRUE)
 shp <- SpatialPolygonsDataFrame(shp, dat)
+
+
+
+### Add field
+shp@data$winner <- shp@data$graph <- NA
+for (i in 1 : length(shp)){
+    pos <- which(colnames(shp@data) == shp@data$first[i])
+    shp@data$winner[i] <- round(100 * shp@data[i, pos] / shp@data$exprimes[i], 1)
+    shp@data$graph[i]  <- as.character(color[which(color$noms == shp@data$first[i]), 'graph'])
+}
+
 
 ### Create and export Tooltips (barplot in html)
 ttips <- list()
@@ -110,61 +102,108 @@ for (j in 1 : length(shp)){
     hc_title(text = as.character(shp@data[j, 'departement']), style = list(fontWeight = "bold")) %>%
     hc_subtitle(text = "Résultats du premier tour de l\'élection présidentielle française 2017") %>%
     hc_tooltip(valueDecimals = 2, pointFormat = "Vote : {point.y}%") %>%
-    hc_credits(enabled = TRUE, text = "Source : data.gouv.fr", style = list(fontSize = "10px")) %>%
+    hc_credits(enabled = TRUE, text = "Source : data.gouv.fr", href = "http://www.data.gouv.fr/fr/posts/les-donnees-des-elections/", style = list(fontSize = "10px")) %>%
     hc_add_theme(hc_theme_economist())
     ttips[[j]]$x$theme$colors <- as.character(dat$cols)
     ttips[[j]]$x$conf_opts$lang$decimalPoint <- ','
-    htmlwidgets::saveWidget(widget = ttips[[j]], file = paste0(indir, '/docs/barplots/file-', j, '.html'), selfcontained = FALSE)
+    htmlwidgets::saveWidget(widget = ttips[[j]], file = paste0(indir, '/barplots/file-', j, '.html'), selfcontained = FALSE)
+}
+
+
+### Abstention layer
+shp2 <- shp
+shp2@data$abstention <- round(100 * shp2@data$abstention / (shp2@data$abstention + shp2@data$inscrits), 1)
+
+cols <- color_classes(seq(0, 40, by = 5), colors = c('#ffffcc','#ffeda0','#fed976','#feb24c','#fd8d3c','#fc4e2a','#e31a1c','#bd0026','#800026'))
+for (i in 1 : length(cols)){
+    shp2@data$color <- ifelse(shp2@data$abstention >= cols[[i]]$from &
+                        shp2@data$abstention <  cols[[i]]$to,
+                        yes = cols[[i]]$color,
+                        no = shp2@data$color)
 }
 
 
 
 ### Clean exported libs (size matter)
-todel <- list.dirs(paste0(indir, '/docs/barplots'), recursive = FALSE)
+todel <- list.dirs(paste0(indir, '/barplots'), recursive = FALSE)
 todel <- todel[grep('_files$', todel)]
-system(paste0('cp -a ', todel[1], '/. ', indir, '/docs/barplots/libs/'))
+system(paste0('cp -a ', todel[1], '/. ', indir, '/barplots/libs/'))
 sapply(todel, function(x) system(paste0('rm -rf ', x)))
 
 
 
 ### Correct libs paths in tooltips html files
 for (i in 1 : length(todel)){
-    html <- readLines(paste0(indir, '/docs/barplots/file-', i, '.html'))
+    html <- readLines(paste0(indir, '/barplots/file-', i, '.html'))
     html <- gsub(paste0('file-', i, '_files/'), 'libs/', html)
-    cat(paste0(html, collapse = '\n'), file = paste0(indir, '/docs/barplots/file-', i, '.html'))
+    cat(paste0(html, collapse = '\n'), file = paste0(indir, '/barplots/file-', i, '.html'))
 }
 
 
 
 ### mapview() + leaflet()
 map <- leaflet() %>%
-setView(lng = 2.25, lat = 46.50, zoom = 6) %>%
-addProviderTiles(providers$CartoDB.Positron) %>%
+setView(lng = 2.25, lat = 46.50, zoom = 5.85) %>%
+# addProviderTiles(providers$CartoDB.Positron) %>%
 garnishMap(addPolygons,
            data = shp,
+           group = 'Votes exprimés (1er tour)',
            weight = .5,
            smoothFactor = 0.5,
            opacity = 1,
            fillOpacity = 1,
-           color = "white",
+           color = "#212121",
            fillColor = as.character(shp@data$color),
-           highlightOptions = highlightOptions(color = "white", weight = 3, bringToFront = TRUE),
-           label = as.character(shp@data[, 'departement']),
-           popup = popupGraph(ttips, type = 'html', width = 750, height = 400))
+           highlightOptions = highlightOptions(color = "#212121", weight = 3, bringToFront = TRUE),
+           label = mapply(function(x, y, z) {
+               HTML(sprintf("%s<br /> %s : %s", htmlEscape(x), htmlEscape(y), htmlEscape(z))) },
+               toupper(as.character(shp2@data[, 'departement'])), as.character(shp@data[, 'graph']), gsub('\\.', ',', paste0(as.character(format(shp@data[, 'winner'])), '%')),
+               SIMPLIFY = FALSE, USE.NAMES = FALSE),
+           popup = popupGraph(ttips, type = 'html', width = 750, height = 400)) %>%
+
+garnishMap(addPolygons,
+           data = shp2,
+           group = 'Taux d\'abstention (1er tour)',
+           weight = .5,
+           smoothFactor = 0.5,
+           opacity = 1,
+           fillOpacity = 1,
+           color = "#212121",
+           fillColor = as.character(shp2@data$color),
+           highlightOptions = highlightOptions(color = "#212121", weight = 3, bringToFront = TRUE),
+           label = mapply(function(x, y) {
+               HTML(sprintf("%s<br />Abstention : %s", htmlEscape(x), htmlEscape(y))) },
+               toupper(as.character(shp2@data[, 'departement'])), gsub('\\.', ',', paste0(as.character(format(shp2@data[, 'abstention'])), '%')),
+               SIMPLIFY = FALSE, USE.NAMES = FALSE)) %>%
+
+addEasyButton(easyButton(icon = 'fa-globe', title = 'Reset zoom',
+                         onClick = JS('function(btn){ location.reload(); }'))) %>%
+addLayersControl(baseGroups = c('Votes exprimés (1er tour)', 'Taux d\'abstention (1er tour)'),
+                 options = layersControlOptions(collapsed = TRUE),
+                 position = 'topleft')
 
 
 
 ### Export core html page
-htmlwidgets::saveWidget(widget = map, file = paste0(indir, '/docs/core.html'), selfcontained = FALSE)
+htmlwidgets::saveWidget(widget = map, file = paste0(indir, '/core.html'), selfcontained = FALSE)
 
 
 
 ### Correct libs paths in core html file
-html <- readLines(paste0(indir, '/docs/core.html'))
+html <- readLines(paste0(indir, '/core.html'))
 html <- gsub('\\.\\./graphs/tmp_', 'barplots/file-', html)
-cat(paste0(html, collapse = '\n'), file = paste0(indir, '/docs/core.html'))
+html <- gsub('width:100%;height:400px;', 'width:100%;height:400px;background-color:#212121;', html)
+cat(paste0(html, collapse = '\n'), file = paste0(indir, '/core.html'))
 
-system(paste0('open ', indir, '/docs/index.html'))
+
+
+### Add CSS styles
+css <- readLines(paste0(indir, '/core_files/leaflet-0.7.7/leaflet.css'))
+css <- c(css, '', '.leaflet-popup { width:780px; }')
+cat(paste0(css, collapse = '\n'), file = paste0(indir, '/core_files/leaflet-0.7.7/leaflet.css'))
+
+
+system(paste0('open ', indir, '/index.html'))
 
 
 
