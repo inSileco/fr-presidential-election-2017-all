@@ -136,6 +136,7 @@ sapply(todel, function(x) system(paste0('rm -rf ', x)))
 for (i in 1 : length(todel)){
     html <- readLines(paste0(indir, '/barplots/file-', i, '.html'))
     html <- gsub(paste0('file-', i, '_files/'), 'libs/', html)
+    html <- gsub('"padding":15|"padding":40', '"padding":5', html)
     cat(paste0(html, collapse = '\n'), file = paste0(indir, '/barplots/file-', i, '.html'))
 }
 
@@ -159,7 +160,7 @@ garnishMap(addPolygons,
                HTML(sprintf("%s<br /> %s : %s", htmlEscape(x), htmlEscape(y), htmlEscape(z))) },
                toupper(as.character(shp2@data[, 'departement'])), as.character(shp@data[, 'graph']), gsub('\\.', ',', paste0(as.character(format(shp@data[, 'winner'])), '%')),
                SIMPLIFY = FALSE, USE.NAMES = FALSE),
-           popup = popupGraph(ttips, type = 'html', width = 750, height = 400)) %>%
+           popup = popupGraph(ttips, type = 'html', width = 750, height = 425)) %>%
 
 garnishMap(addPolygons,
            data = shp2,
@@ -199,7 +200,7 @@ cat(paste0(html, collapse = '\n'), file = paste0(indir, '/core.html'))
 
 ### Add CSS styles
 css <- readLines(paste0(indir, '/core_files/leaflet-0.7.7/leaflet.css'))
-css <- c(css, '', '.leaflet-popup { width:780px; }')
+css <- c(css, '', '.leaflet-popup { width:790px; }')
 cat(paste0(css, collapse = '\n'), file = paste0(indir, '/core_files/leaflet-0.7.7/leaflet.css'))
 
 
